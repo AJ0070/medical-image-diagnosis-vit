@@ -25,9 +25,18 @@ DEVICE = os.environ.get("DEVICE", None)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Loading model...")
-    dependencies.initialize(CONFIG_PATH, CHECKPOINT_PATH, DEVICE)
-    logger.info("Model ready.")
+    if os.path.exists(CHECKPOINT_PATH):
+        logger.info("Loading model...")
+        dependencies.initialize(CONFIG_PATH, CHECKPOINT_PATH, DEVICE)
+        logger.info("Model ready.")
+    else:
+        logger.warning(
+            f"Checkpoint not found at '{CHECKPOINT_PATH}'. "
+            "API is running — /docs and /health are available. "
+            "Train a model first to enable /predict."
+        )
+        # Load config only so /health and /model-info still work
+        dependencies.initialize_config_only(CONFIG_PATH)
     yield
     logger.info("Shutting down.")
 

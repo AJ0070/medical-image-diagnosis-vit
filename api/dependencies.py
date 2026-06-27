@@ -36,13 +36,25 @@ def initialize(config_path: str, checkpoint_path: str, device: Optional[str] = N
     logger.info(f"Model loaded on {dev}")
 
 
+def initialize_config_only(config_path: str) -> None:
+    """Load config without a model — for demo/no-checkpoint mode."""
+    global _cfg
+    with open(config_path) as f:
+        _cfg = yaml.safe_load(f)
+
+
 def get_predictor() -> Predictor:
+    from fastapi import HTTPException
     if _predictor is None:
-        raise RuntimeError("Predictor not initialized. Call initialize() at startup.")
+        raise HTTPException(
+            status_code=503,
+            detail="Model not loaded. Train a model and provide a checkpoint path to enable predictions.",
+        )
     return _predictor
 
 
 def get_cfg() -> dict:
+    from fastapi import HTTPException
     if _cfg is None:
-        raise RuntimeError("Config not loaded.")
+        raise HTTPException(status_code=503, detail="Config not loaded.")
     return _cfg
