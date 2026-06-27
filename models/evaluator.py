@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 from models.metrics import MetricsCalculator
 
@@ -46,7 +46,7 @@ class Evaluator:
         for images, labels in loader:
             images = images.to(self.device)
             labels = labels.to(self.device)
-            with autocast(enabled=self.device.type == "cuda"):
+            with autocast(device_type=self.device.type, enabled=self.device.type == "cuda"):
                 logits = self.model(images)
             calculator.update(logits, labels)
             probs = torch.softmax(logits.cpu(), dim=1).numpy()

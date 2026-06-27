@@ -100,6 +100,10 @@ class DataModule:
         self.class_names: List[str] = self.dataset_cfg.get("classes", [])
         self.data_root: str = self.dataset_cfg.get("path", "datasets")
         self.apply_clahe: bool = self.aug_cfg.get("clahe", False)
+        # pin_memory only helps when a CUDA GPU is available
+        self._pin_memory: bool = (
+            self.train_cfg.get("pin_memory", True) and torch.cuda.is_available()
+        )
 
         self.train_dataset: Optional[MedicalImageDataset] = None
         self.val_dataset: Optional[MedicalImageDataset] = None
@@ -191,7 +195,7 @@ class DataModule:
             sampler=sampler,
             shuffle=(sampler is None),
             num_workers=self.train_cfg.get("num_workers", 4),
-            pin_memory=self.train_cfg.get("pin_memory", True),
+            pin_memory=self._pin_memory,
             drop_last=True,
         )
 
@@ -201,7 +205,7 @@ class DataModule:
             batch_size=self.train_cfg.get("batch_size", 32) * 2,
             shuffle=False,
             num_workers=self.train_cfg.get("num_workers", 4),
-            pin_memory=self.train_cfg.get("pin_memory", True),
+            pin_memory=self._pin_memory,
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -210,5 +214,5 @@ class DataModule:
             batch_size=self.train_cfg.get("batch_size", 32) * 2,
             shuffle=False,
             num_workers=self.train_cfg.get("num_workers", 4),
-            pin_memory=self.train_cfg.get("pin_memory", True),
+            pin_memory=self._pin_memory,
         )

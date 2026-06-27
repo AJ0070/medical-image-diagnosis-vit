@@ -8,7 +8,7 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.optim import Adam, AdamW, SGD, RMSprop
 from torch.optim.lr_scheduler import (
     CosineAnnealingLR,
@@ -86,7 +86,7 @@ class Trainer:
         self.amp = self.train_cfg.get("mixed_precision", True) and self.device.type == "cuda"
         self.freeze_epochs = cfg.get("model", {}).get("freeze_epochs", 0)
 
-        self.scaler = GradScaler(enabled=self.amp)
+        self.scaler = GradScaler(device_type=self.device.type, enabled=self.amp)
         self.optimizer = self._build_optimizer()
         self.early_stopping = EarlyStopping(
             patience=self.train_cfg.get("early_stopping_patience", 10)
@@ -185,7 +185,7 @@ class Trainer:
             images = images.to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
 
-            with autocast(enabled=self.amp):
+            with autocast(device_type=self.device.type, enabled=self.amp):
                 logits = self.model(images)
                 loss = criterion(logits, labels) / self.grad_accum
 
@@ -211,7 +211,7 @@ class Trainer:
         for images, labels in loader:
             images = images.to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
-            with autocast(enabled=self.amp):
+            with autocast(device_type=self.device.type, enabled=self.amp):
                 logits = self.model(images)
                 loss = criterion(logits, labels)
             metrics.update(logits, labels, loss.item())
