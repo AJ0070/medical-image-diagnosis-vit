@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: medical-image-diagnosis-vit:latest
+    container_name: medvit-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../checkpoints:/app/checkpoints:ro
+      - ../configs:/app/configs:ro
+      - ../results:/app/results
+    environment:
+      - CONFIG_PATH=${CONFIG_PATH:-configs/chest_xray.yaml}
+      - CHECKPOINT_PATH=${CHECKPOINT_PATH:-checkpoints/chest-xray-pneumonia/best_model.pth}
+      - DEVICE=${DEVICE:-cpu}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: medical-image-diagnosis-vit:latest
+    container_name: medvit-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../checkpoints:/app/checkpoints:ro
+      - ../configs:/app/configs:ro
+      - ../results:/app/results:ro
+    environment:
+      - CONFIG_PATH=${CONFIG_PATH:-configs/chest_xray.yaml}
+      - CHECKPOINT_PATH=${CHECKPOINT_PATH:-checkpoints/chest-xray-pneumonia/best_model.pth}
+    depends_on:
+      - api
+    command: ["streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    restart: unless-stopped
