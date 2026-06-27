@@ -52,6 +52,16 @@ All models use **ImageNet pretrained weights** via [timm](https://github.com/hug
 ```bash
 git clone https://github.com/your-username/medical-image-diagnosis-vit
 cd medical-image-diagnosis-vit
+
+# Create and activate virtual environment
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# macOS / Linux
+source venv/bin/activate
+
 pip install -r requirements.txt
 pip install -e .
 ```
