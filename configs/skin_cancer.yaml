@@ -1,0 +1,45 @@
+# Skin Cancer Classification
+_base_: "base.yaml"
+
+project:
+  name: "skin-cancer-classification"
+
+dataset:
+  name: "skin_cancer"
+  path: "datasets/skin_cancer"
+  num_classes: 2
+  classes:
+    - "Benign"
+    - "Malignant"
+  class_weights: [1.0, 2.0]   # malignant class is rarer
+  description: "HAM10000 / ISIC Skin Lesion Dataset"
+  download_url: "https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000"
+
+model:
+  name: "efficientnet_b3"
+  image_size: 300
+  dropout: 0.3
+
+training:
+  epochs: 50
+  batch_size: 16
+  early_stopping_patience: 12
+
+loss:
+  name: "focal"
+  focal_alpha: 0.75
+  focal_gamma: 2.0
+
+data:
+  image_size: 300
+  mean: [0.7630, 0.5456, 0.5700]
+  std: [0.1409, 0.1526, 0.1695]
+
+augmentation:
+  clahe: true
+  horizontal_flip: true
+  vertical_flip: true
+  rotation: 30
+  brightness: 0.3
+  contrast: 0.3
+  mixup_alpha: 0.2

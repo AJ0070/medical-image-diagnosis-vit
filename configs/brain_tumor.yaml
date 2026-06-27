@@ -1,0 +1,40 @@
+# Brain Tumor MRI Classification
+_base_: "base.yaml"
+
+project:
+  name: "brain-tumor-mri"
+
+dataset:
+  name: "brain_tumor"
+  path: "datasets/brain_tumor"
+  num_classes: 4
+  classes:
+    - "Glioma"
+    - "Meningioma"
+    - "Pituitary"
+    - "No Tumor"
+  class_weights: [1.0, 1.2, 1.0, 1.0]
+  description: "Kaggle Brain MRI Dataset"
+  download_url: "https://www.kaggle.com/datasets/sartajbhuvaji/brain-tumor-classification-mri"
+
+model:
+  name: "vit_b16"
+  image_size: 224
+  dropout: 0.3
+
+training:
+  epochs: 40
+  batch_size: 32
+  early_stopping_patience: 10
+
+loss:
+  name: "weighted_cross_entropy"
+  label_smoothing: 0.1
+
+augmentation:
+  clahe: true
+  horizontal_flip: true
+  vertical_flip: true
+  rotation: 20
+  brightness: 0.2
+  contrast: 0.2

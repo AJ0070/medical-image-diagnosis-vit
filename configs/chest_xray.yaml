@@ -1,0 +1,39 @@
+# Chest X-Ray Pneumonia Detection
+_base_: "base.yaml"
+
+project:
+  name: "chest-xray-pneumonia"
+
+dataset:
+  name: "chest_xray"
+  path: "datasets/chest_xray"
+  num_classes: 2
+  classes:
+    - "Normal"
+    - "Pneumonia"
+  class_weights: [1.0, 1.0]   # rebalanced during training
+  description: "Kaggle Chest X-Ray Pneumonia Dataset"
+  download_url: "https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia"
+
+model:
+  name: "vit_b16"
+  image_size: 224
+  dropout: 0.2
+
+training:
+  epochs: 30
+  batch_size: 32
+  early_stopping_patience: 8
+
+data:
+  image_size: 224
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+
+augmentation:
+  clahe: true
+  horizontal_flip: true
+  vertical_flip: false
+  rotation: 10
+  brightness: 0.15
+  contrast: 0.15
