@@ -22,7 +22,7 @@ def build_transforms(
     if split == "train":
         return A.Compose(
             [
-                A.Resize(image_size, image_size),
+                A.Resize(height=image_size, width=image_size),
                 A.HorizontalFlip(p=0.5),
                 A.RandomBrightnessContrast(p=0.3),
                 A.Normalize(mean=mean, std=std),
@@ -31,7 +31,7 @@ def build_transforms(
         )
     return A.Compose(
         [
-            A.Resize(image_size, image_size),
+            A.Resize(height=image_size, width=image_size),
             A.Normalize(mean=mean, std=std),
             ToTensorV2(),
         ]

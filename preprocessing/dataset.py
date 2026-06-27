@@ -106,27 +106,43 @@ class DataModule:
         self.test_dataset: Optional[MedicalImageDataset] = None
 
     def setup(self, csv_path: Optional[str] = None) -> None:
-        """Load and split data, build datasets."""
-        if csv_path and os.path.exists(csv_path):
-            paths, labels = _load_from_csv(csv_path, image_dir=self.data_root)
-        else:
-            paths, labels, class_names = _scan_directory(self.data_root)
-            if not self.class_names:
-                self.class_names = class_names
+        """Load and split data, build datasets.
 
-        train_ratio = self.data_cfg.get("train_split", 0.7)
-        val_ratio = self.data_cfg.get("val_split", 0.15)
-
-        train_paths, temp_paths, train_labels, temp_labels = train_test_split(
-            paths, labels, test_size=1 - train_ratio, stratify=labels, random_state=42
-        )
-        relative_val = val_ratio / (1 - train_ratio)
-        val_paths, test_paths, val_labels, test_labels = train_test_split(
-            temp_paths, temp_labels, test_size=1 - relative_val, stratify=temp_labels, random_state=42
-        )
-
+        Supports two layouts:
+        1. Pre-split: root/train/<class>/, root/val/<class>/, root/test/<class>/
+        2. Flat:      root/<class>/  (DataModule performs the split)
+        """
         train_transform = build_augmentation_pipeline(self.cfg, split="train")
         eval_transform = build_augmentation_pipeline(self.cfg, split="val")
+
+        root = Path(self.data_root)
+        if self._is_presplit(root):
+            # Use the existing train/val/test directories
+            train_paths, train_labels, class_names = _scan_directory(str(root / "train"))
+            val_dir = root / "val" if (root / "val").exists() else root / "valid"
+            val_paths, val_labels, _ = _scan_directory(str(val_dir))
+            test_dir = root / "test"
+            if test_dir.exists():
+                test_paths, test_labels, _ = _scan_directory(str(test_dir))
+            else:
+                test_paths, test_labels = val_paths, val_labels
+            if not self.class_names:
+                self.class_names = class_names
+            logger.info("Detected pre-split dataset layout (train/val/test folders)")
+        elif csv_path and os.path.exists(csv_path):
+            all_paths, all_labels = _load_from_csv(csv_path, image_dir=self.data_root)
+            train_paths, temp_paths, train_labels, temp_labels = self._split(all_paths, all_labels)
+            val_paths, test_paths, val_labels, test_labels = self._split_val_test(
+                temp_paths, temp_labels
+            )
+        else:
+            all_paths, all_labels, class_names = _scan_directory(self.data_root)
+            if not self.class_names:
+                self.class_names = class_names
+            train_paths, temp_paths, train_labels, temp_labels = self._split(all_paths, all_labels)
+            val_paths, test_paths, val_labels, test_labels = self._split_val_test(
+                temp_paths, temp_labels
+            )
 
         self.train_dataset = MedicalImageDataset(
             train_paths, train_labels, train_transform, self.class_names, self.apply_clahe
@@ -141,6 +157,24 @@ class DataModule:
         logger.info(
             f"Dataset split — train: {len(train_paths)}, "
             f"val: {len(val_paths)}, test: {len(test_paths)}"
+        )
+
+    @staticmethod
+    def _is_presplit(root: Path) -> bool:
+        return (root / "train").is_dir()
+
+    def _split(self, paths, labels):
+        train_ratio = self.data_cfg.get("train_split", 0.7)
+        return train_test_split(
+            paths, labels, test_size=1 - train_ratio, stratify=labels, random_state=42
+        )
+
+    def _split_val_test(self, paths, labels):
+        val_ratio = self.data_cfg.get("val_split", 0.15)
+        train_ratio = self.data_cfg.get("train_split", 0.7)
+        relative_val = val_ratio / (1 - train_ratio)
+        return train_test_split(
+            paths, labels, test_size=1 - relative_val, stratify=labels, random_state=42
         )
 
     def _make_sampler(self, dataset: MedicalImageDataset) -> Optional[WeightedRandomSampler]:
