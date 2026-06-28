@@ -68,7 +68,12 @@ def set_seed(seed: int) -> None:
 @click.option("--resume", "-r", default=None, help="Checkpoint path to resume from")
 @click.option("--no-wandb", is_flag=True, help="Disable W&B logging")
 @click.option("--device", default=None, help="Device: cuda / cpu")
-def main(config, data_dir, epochs, batch_size, lr, model, resume, no_wandb, device):
+@click.option(
+    "--fast-dev-run",
+    is_flag=True,
+    help="Smoke-test: 1 epoch, 8 batches, batch-size 4. Verifies the full pipeline quickly.",
+)
+def main(config, data_dir, epochs, batch_size, lr, model, resume, no_wandb, device, fast_dev_run):
     """Train a medical image classification model."""
     cfg = load_config(config)
 
@@ -87,6 +92,22 @@ def main(config, data_dir, epochs, batch_size, lr, model, resume, no_wandb, devi
         cfg.setdefault("training", {})["resume_from"] = resume
     if no_wandb:
         cfg.setdefault("logging", {}).setdefault("wandb", {})["enabled"] = False
+
+    if fast_dev_run:
+        logger.info("Fast-dev-run enabled: 1 epoch, 8 batches, batch_size=4")
+        cfg.setdefault("training", {}).update({
+            "epochs": 1,
+            "batch_size": 4,
+            "num_workers": 0,
+            "pin_memory": False,
+            "mixed_precision": False,
+            "early_stopping_patience": 999,
+        })
+        cfg.setdefault("logging", {}).update({
+            "tensorboard": {"enabled": False},
+            "wandb": {"enabled": False},
+        })
+        cfg["_fast_dev_run_batches"] = 8
 
     seed = cfg.get("project", {}).get("seed", 42)
     set_seed(seed)
@@ -120,6 +141,7 @@ def main(config, data_dir, epochs, batch_size, lr, model, resume, no_wandb, devi
         num_classes=num_classes,
         class_names=data_module.class_names,
         device=dev,
+        fast_dev_run_batches=cfg.get("_fast_dev_run_batches", 0),
     )
     trainer.fit(train_loader, val_loader, criterion)
     logger.info("Training complete.")

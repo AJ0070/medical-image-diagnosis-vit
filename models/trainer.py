@@ -8,7 +8,7 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
-from torch.amp import GradScaler, autocast
+from torch.amp import autocast
 from torch.optim import Adam, AdamW, SGD, RMSprop
 from torch.optim.lr_scheduler import (
     CosineAnnealingLR,
@@ -61,6 +61,7 @@ class Trainer:
         num_classes: int,
         class_names: Optional[list] = None,
         device: Optional[torch.device] = None,
+        fast_dev_run_batches: int = 0,
     ) -> None:
         self.model = model
         self.cfg = cfg
@@ -85,8 +86,13 @@ class Trainer:
         self.clip_norm = self.train_cfg.get("gradient_clip_norm", 1.0)
         self.amp = self.train_cfg.get("mixed_precision", True) and self.device.type == "cuda"
         self.freeze_epochs = cfg.get("model", {}).get("freeze_epochs", 0)
+        self.fast_dev_run_batches = fast_dev_run_batches
 
-        self.scaler = GradScaler(device_type=self.device.type, enabled=self.amp)
+        # GradScaler only makes sense on CUDA; use None on CPU to avoid version compat issues
+        if self.amp:
+            self.scaler = torch.amp.GradScaler("cuda")
+        else:
+            self.scaler = None
         self.optimizer = self._build_optimizer()
         self.early_stopping = EarlyStopping(
             patience=self.train_cfg.get("early_stopping_patience", 10)
@@ -182,6 +188,9 @@ class Trainer:
         self.optimizer.zero_grad()
 
         for step, (images, labels) in enumerate(loader):
+            if self.fast_dev_run_batches and step >= self.fast_dev_run_batches:
+                break
+
             images = images.to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
 
@@ -189,13 +198,20 @@ class Trainer:
                 logits = self.model(images)
                 loss = criterion(logits, labels) / self.grad_accum
 
-            self.scaler.scale(loss).backward()
+            if self.scaler is not None:
+                self.scaler.scale(loss).backward()
+            else:
+                loss.backward()
 
             if (step + 1) % self.grad_accum == 0:
-                self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_norm)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                if self.scaler is not None:
+                    self.scaler.unscale_(self.optimizer)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_norm)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_norm)
+                    self.optimizer.step()
                 self.optimizer.zero_grad()
 
             metrics.update(logits.detach(), labels.detach(), loss.item() * self.grad_accum)
@@ -208,7 +224,9 @@ class Trainer:
     ) -> Dict[str, float]:
         self.model.eval()
         metrics.reset()
-        for images, labels in loader:
+        for step, (images, labels) in enumerate(loader):
+            if self.fast_dev_run_batches and step >= self.fast_dev_run_batches:
+                break
             images = images.to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
             with autocast(device_type=self.device.type, enabled=self.amp):
